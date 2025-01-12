@@ -1,4 +1,5 @@
-Maria Clarence Casipe
+Klevin Jay Porio
+
 #include <LiquidCrystal_I2C.h>
 #include <Servo.h>  // Include the Servo library
 
