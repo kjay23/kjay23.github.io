@@ -1,0 +1,67 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Keypad.h>
+
+#define PASSWORD_LENGTH 8
+const char MASTER_PASSWORD[] = "123A456";
+const int LOCK_PIN = A0, BUZZER_PIN = A1, MAX_ATTEMPTS = 3;
+const unsigned long LOCKOUT_TIME = 180000;
+
+const byte ROWS = 4, COLS = 4;
+char KEYS[ROWS][COLS] = {{'1', '2', '3', 'A'}, {'4', '5', '6', 'B'}, {'7', '8', '9', 'C'}, {'0', 'D', ' ', ' '}};
+byte ROW_PINS[ROWS] = {4, 5, 6, 7}, COL_PINS[COLS] = {8, 9, 10, 11};
+
+Keypad keypad = Keypad(makeKeymap(KEYS), ROW_PINS, COL_PINS, ROWS, COLS);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+char input[PASSWORD_LENGTH];
+byte inputIndex = 0, incorrectAttempts = 0;
+unsigned long lockoutStart = 0;
+
+void setup() {
+  lcd.init();
+  lcd.backlight();
+  pinMode(LOCK_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(LOCK_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void loop() {
+  if (millis() - lockoutStart < LOCKOUT_TIME && incorrectAttempts >= MAX_ATTEMPTS) {
+    lcd.setCursor(0, 0); lcd.print("Wait 3 Minutes");
+    lcd.setCursor(0, 1); lcd.print("Try Again Later");
+    return;
+  }
+
+  if (incorrectAttempts >= MAX_ATTEMPTS) incorrectAttempts = 0;
+  lcd.setCursor(0, 0); lcd.print("Enter Password:");
+  char key = keypad.getKey();
+  if (!key) return;
+
+  if (inputIndex < PASSWORD_LENGTH - 1) {
+    input[inputIndex++] = key;
+    lcd.setCursor(inputIndex - 1, 1); lcd.print(key);
+
+    if (inputIndex == PASSWORD_LENGTH - 1) { // Automatically check password
+      input[inputIndex] = '\0';
+      lcd.clear();
+      if (!strcmp(input, MASTER_PASSWORD)) {
+        lcd.print("Code Accepted");
+        digitalWrite(LOCK_PIN, HIGH);
+        delay(5000);
+        digitalWrite(LOCK_PIN, LOW);
+        incorrectAttempts = 0;
+      } else {
+        lcd.print("Code Incorrect");
+        if (++incorrectAttempts >= MAX_ATTEMPTS) {
+          lockoutStart = millis();
+          lcd.clear(); lcd.print("Wait 3 Minutes");
+          digitalWrite(BUZZER_PIN, HIGH); delay(3000); digitalWrite(BUZZER_PIN, LOW);
+        }
+      }
+      delay(1500);
+      inputIndex = 0; memset(input, 0, PASSWORD_LENGTH);
+    }
+  }
+}
